@@ -33,7 +33,14 @@ export default function DashboardPage() {
         fetchDashboardData();
     }, []);
 
-    if (loading) return <div className="flex justify-center items-center h-full">Cargando...</div>;
+    if (loading) return (
+        <div className="flex justify-center items-center h-screen">
+          <div className="relative flex flex-col items-center">
+            <div className="h-16 w-16 animate-spin rounded-full border-4 border-solid border-primary border-t-transparent"></div>
+            <span className="mt-4 text-muted-foreground">Cargando...</span>
+          </div>
+        </div>
+      );
     if (error) return <div className="text-red-500">{error}</div>;
     if (!data) return <div>No hay datos disponibles</div>;
 
