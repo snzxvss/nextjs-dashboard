@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
     Card,
@@ -17,30 +17,71 @@ export default function DashboardPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    // Definimos la función para fetch de datos fuera del useEffect
+    const fetchDashboardData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const analyticsData = await analyticsService.getDashboardData();
+            setData(analyticsData);
+        } catch (err) {
+            setError('Error al cargar los datos del dashboard');
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
     useEffect(() => {
-        const fetchDashboardData = async () => {
+        fetchDashboardData();
+    }, [fetchDashboardData]);
+
+    // Integración de WebSocket
+    useEffect(() => {
+        const socketUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL;
+        if (!socketUrl) {
+            console.error('NEXT_PUBLIC_WEBSOCKET_URL no está definido en el .env');
+            return;
+        }
+        const ws = new WebSocket(socketUrl);
+
+        ws.onopen = () => {
+            console.log('WebSocket conectado');
+        };
+
+        ws.onmessage = (event) => {
             try {
-                const analyticsData = await analyticsService.getDashboardData();
-                setData(analyticsData);
-            } catch (err) {
-                setError('Error al cargar los datos del dashboard');
-                console.error(err);
-            } finally {
-                setLoading(false);
+                const message = JSON.parse(event.data);
+                // Si el mensaje indica que se actualizaron las órdenes, refrescamos los datos
+                if (message.type === 'orders_updated') {
+                    console.log('Mensaje recibido de WebSocket: orders_updated');
+                    fetchDashboardData();
+                }
+            } catch (error) {
+                console.error('Error al parsear el mensaje de WebSocket:', error);
             }
         };
 
-        fetchDashboardData();
-    }, []);
+        ws.onerror = (error) => {
+            console.error('Error en WebSocket:', error);
+        };
+
+        ws.onclose = () => {
+            console.log('WebSocket desconectado');
+        };
+
+        return () => {
+            ws.close();
+        };
+    }, [fetchDashboardData]);
 
     if (loading) return (
         <div className="flex justify-center items-center h-screen">
-          <div className="relative flex flex-col items-center">
-            <div className="h-16 w-16 animate-spin rounded-full border-4 border-solid border-primary border-t-transparent"></div>
-            <span className="mt-4 text-muted-foreground">Cargando...</span>
-          </div>
+            <div className="relative flex flex-col items-center">
+                <div className="h-16 w-16 animate-spin rounded-full border-4 border-solid border-primary border-t-transparent"></div>
+                <span className="mt-4 text-muted-foreground">Cargando...</span>
+            </div>
         </div>
-      );
+    );
     if (error) return <div className="text-red-500">{error}</div>;
     if (!data) return <div>No hay datos disponibles</div>;
 

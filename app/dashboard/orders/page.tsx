@@ -1,6 +1,7 @@
+// app/dashboard/orders/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { Bar, Line, Pie } from 'react-chartjs-2';
@@ -16,149 +17,102 @@ import {
     Legend,
     ArcElement
 } from 'chart.js';
+import websocketService from '../../services/websocketService';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, ArcElement);
 
 interface Order {
     id: string;
-    timestamp: number;
-    status: string;
-    customer: {
-        name: string;
-        idNumber: string;
-        phone: string;
-        address: string;
-        barrio: string;
-        city: string;
-    };
-    product: {
-        id: number;
-        name: string;
-        description: string;
-        price: number;
-        imageUrl: string;
-    };
-    payment: {
-        total: number;
-        productPrice: number;
-        deliveryCost: number;
-        imagePath: string;
-    };
-    attendedBy?: string;
-    attendedTimestamp?: number;
-    notes?: string;
+    date: string;
+    customer: string;
+    total: number;
+    status: 'new' | 'processing' | 'completed' | 'cancelled';
 }
 
 export default function OrdersPage() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
-    const [view, setView] = useState<'table' | 'chart'>('chart');
+    const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        async function fetchOrders() {
-            // Simulación de llamada al endpoint
-            const fakeData: Order[] = [
-                {
-                    id: "eeb1131f-59a5-4c40-8da0-a52effd1cb14",
-                    timestamp: 1741201355315,
-                    status: "new",
-                    customer: { name: "Camilo", idNumber: "000", phone: "+573023606047", address: "Carrera 32 #21-26", barrio: "Rebolo", city: "Barranquilla" },
-                    product: { id: 7, name: "TREVORCEL", description: "Descripción Articulo", price: 20000, imageUrl: "https://media-public.canva.com/VosOA/MAE4u9VosOA/1/s2.jpg" },
-                    payment: { total: 35611.88, productPrice: 20000, deliveryCost: 15611.88, imagePath: "/media/payments/payment_1741201355313-28107951.jpg" }
-                },
-                {
-                    id: "555131ab-c62e-475b-9b21-a6afe2de37fb",
-                    timestamp: 1741202339658,
-                    status: "new",
-                    customer: { name: "Camilo", idNumber: "00", phone: "+573023606047", address: "Carrera 32 #21-26", barrio: "Rebolo", city: "Barranquilla" },
-                    product: { id: 7, name: "TREVORCEL", description: "Descripción Articulo", price: 20000, imageUrl: "https://media-public.canva.com/VosOA/MAE4u9VosOA/1/s2.jpg" },
-                    payment: { total: 35611.88, productPrice: 20000, deliveryCost: 15611.88, imagePath: "/media/payments/payment_1741202339656-34513375.jpg" }
-                },
-                {
-                    id: "67ab192c-f8d1-4ec9-b237-4d5f6ac8b7e5",
-                    timestamp: 1741103276543,
-                    status: "completed",
-                    customer: { name: "Laura Martínez", idNumber: "1234567", phone: "+573145678921", address: "Calle 45 #23-15", barrio: "Boston", city: "Barranquilla" },
-                    product: { id: 3, name: "METRONIDAZOL", description: "Antibiótico tópico para piel", price: 15000, imageUrl: "https://media-public.canva.com/VosOA/MAE4u9VosOA/1/s3.jpg" },
-                    payment: { total: 28500, productPrice: 15000, deliveryCost: 13500, imagePath: "/media/payments/payment_1741103276540-91253478.jpg" },
-                    attendedBy: "operator1",
-                    attendedTimestamp: 1741113578923
-                }
-                // ...más órdenes
-            ];
-            setOrders(fakeData);
+    const fetchOrders = useCallback(async () => {
+        setLoading(true);
+        try {
+            const response = await fetch('/api/orders'); // Replace with your API endpoint
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            setOrders(data);
+        } catch (e: any) {
+            setError(`Failed to fetch orders: ${e.message}`);
+        } finally {
             setLoading(false);
         }
-        fetchOrders();
     }, []);
 
-    // Cálculos básicos y complejos
-    const totalOrders = orders.length;
-    const totalRevenue = orders.reduce((acc, order) => acc + order.payment.total, 0);
-    const averageOrderValue = totalOrders ? totalRevenue / totalOrders : 0;
-    const totalDeliveryCost = orders.reduce((acc, order) => acc + order.payment.deliveryCost, 0);
-    const averageDeliveryCost = totalOrders ? totalDeliveryCost / totalOrders : 0;
-    const netRevenue = totalRevenue - totalDeliveryCost;
+    useEffect(() => {
+        fetchOrders();
+    }, [fetchOrders]);
 
-    const statusCounts = orders.reduce((acc, order) => {
+    // WebSocket integration
+    const handleWebSocketMessage = useCallback((data: any) => {
+        if (data.type === 'orders_updated') {
+            console.log('Orders updated via WebSocket');
+            fetchOrders();
+        }
+    }, [fetchOrders]);
+
+    websocketService(handleWebSocketMessage);
+
+    if (loading) return <div>Loading orders...</div>;
+    if (error) return <div>Error: {error}</div>;
+
+    // Basic calculations
+    const totalOrders = orders.length;
+    const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0);
+    const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+    // Group orders by status
+    const statusCounts = orders.reduce((acc: any, order) => {
         acc[order.status] = (acc[order.status] || 0) + 1;
         return acc;
-    }, {} as Record<string, number>);
+    }, {});
 
-    const revenueByStatus = orders.reduce((acc, order) => {
-        acc[order.status] = (acc[order.status] || 0) + order.payment.total;
-        return acc;
-    }, {} as Record<string, number>);
+    // Net revenue calculation (assuming a fixed shipping cost)
+    const shippingCost = 10;
+    const netRevenue = totalRevenue - (totalOrders * shippingCost);
 
-    const chartData = {
+    // Chart data
+    const orderStatusData = {
         labels: Object.keys(statusCounts),
         datasets: [
             {
-                label: 'Cantidad de Órdenes',
-                data: Object.values(statusCounts),
-                backgroundColor: 'rgba(75,192,192,0.6)'
-            }
-        ]
-    };
-
-    const revenueData = {
-        labels: Object.keys(revenueByStatus),
-        datasets: [
-            {
-                label: 'Ingresos por Estado',
-                data: Object.values(revenueByStatus),
-                backgroundColor: 'rgba(153,102,255,0.6)'
-            }
-        ]
-    };
-
-    const pieData = {
-        labels: Object.keys(statusCounts),
-        datasets: [
-            {
-                label: 'Distribución de Órdenes',
+                label: 'Número de Órdenes',
                 data: Object.values(statusCounts),
                 backgroundColor: [
-                    'rgba(255,99,132,0.6)',
-                    'rgba(54,162,235,0.6)',
-                    'rgba(255,206,86,0.6)',
-                    'rgba(75,192,192,0.6)',
-                    'rgba(153,102,255,0.6)',
-                    'rgba(255,159,64,0.6)'
-                ]
-            }
-        ]
+                    'rgba(255, 99, 132, 0.2)',
+                    'rgba(54, 162, 235, 0.2)',
+                    'rgba(255, 206, 86, 0.2)',
+                    'rgba(75, 192, 192, 0.2)',
+                ],
+                borderColor: [
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 206, 86, 1)',
+                    'rgba(75, 192, 192, 1)',
+                ],
+                borderWidth: 1,
+            },
+        ],
     };
 
-    if (loading) return <div>Cargando órdenes...</div>;
-
     return (
-        <div className="flex flex-col space-y-4 p-4">
-            {/* Tarjetas con cálculos básicos */}
+        <div>
+            {/* Display calculations and charts */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Total de Órdenes</CardTitle>
+                        <CardTitle>Órdenes Totales</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{totalOrders}</div>
@@ -216,29 +170,27 @@ export default function OrdersPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">
-                            {totalDeliveryCost.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}
+                            {shippingCost.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                            Suma de costos de envío
+                            Costo total de envíos
                         </p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader>
-                        <CardTitle>Costo Promedio de Envío</CardTitle>
+                        <CardTitle>Órdenes Nuevas</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">
-                            {averageDeliveryCost.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}
-                        </div>
+                        <div className="text-2xl font-bold">{statusCounts['new'] || 0}</div>
                         <p className="text-xs text-muted-foreground">
-                            Promedio por envío
+                            Órdenes nuevas
                         </p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader>
-                        <CardTitle>Órdenes Completadas</CardTitle>
+                        <CardTitle>Órdenes Finalizadas</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{statusCounts['completed'] || 0}</div>
@@ -267,48 +219,7 @@ export default function OrdersPage() {
                         <CardTitle>Órdenes por Estado</CardTitle>
                     </CardHeader>
                     <CardContent className="h-[300px]">
-                        <Bar data={chartData} options={{ responsive: true, plugins: { legend: { position: 'top' } } }} />
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Ingresos por Estado</CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-[300px]">
-                        <Bar data={revenueData} options={{ responsive: true, plugins: { legend: { position: 'top' } } }} />
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Distribución de Órdenes</CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-[300px]">
-                        <Pie data={pieData} options={{ responsive: true, plugins: { legend: { position: 'top' } } }} />
-                    </CardContent>
-                </Card>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Ingresos por Día</CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-[300px]">
-                        <Line
-                            data={{
-                                labels: orders.map(order => new Date(order.timestamp).toLocaleDateString('es-CO')),
-                                datasets: [
-                                    {
-                                        label: 'Ingresos',
-                                        data: orders.map(order => order.payment.total),
-                                        borderColor: 'rgba(75,192,192,1)',
-                                        backgroundColor: 'rgba(75,192,192,0.2)',
-                                        fill: true
-                                    }
-                                ]
-                            }}
-                            options={{ responsive: true, plugins: { legend: { position: 'top' } } }}
-                        />
+                        <Pie data={orderStatusData} />
                     </CardContent>
                 </Card>
             </div>

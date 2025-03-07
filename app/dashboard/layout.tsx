@@ -58,9 +58,9 @@ function DesktopNav() {
                     <Package className="h-5 w-5" />
                 </NavItem>
                 
-                <NavItem href="/dashboard/sheet" label="Editor">
+                {/* <NavItem href="/dashboard/sheet" label="Editor">
                     <Table className="h-5 w-5" />
-                </NavItem>
+                </NavItem> */}
                 
                 <NavItem href="/dashboard/orders" label="Contabilidad">
                     <BarChart2 className="h-5 w-5" />
@@ -109,13 +109,13 @@ export function MobileNav() {
                         <BarChart2 className="h-5 w-5" />
                         Contabilidad
                     </Link>
-                    <Link
+                    {/* <Link
                         href="/dashboard/sheet"
                         className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
                     >
                         <Table className="h-5 w-5" />
                         Editor
-                    </Link>
+                    </Link> */}
                 </nav>
             </SheetContent>
         </Sheet>
