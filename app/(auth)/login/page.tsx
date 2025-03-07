@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -16,7 +15,6 @@ import Link from 'next/link';
 import { GoogleIcon, VercelLogo } from '@/components/icons';
 import { ArrowLeft } from 'lucide-react';
 import { authService } from '../../services/authService';
-// Para mostrar alertas, instala sweetalert2: npm install sweetalert2
 import Swal from 'sweetalert2';
 
 export default function LoginPage() {
@@ -45,7 +43,6 @@ export default function LoginPage() {
 
         try {
             await authService.login(formData.username, formData.password);
-            // Redireccionar al dashboard en caso de éxito
             router.push('/dashboard');
         } catch (error) {
             console.error('Error de inicio de sesión:', error);
@@ -62,17 +59,7 @@ export default function LoginPage() {
 
     return (
         <div className="min-h-screen flex flex-col">
-            <div className="p-4">
-                <Link
-                    href="/"
-                    className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
-                >
-                    <ArrowLeft className="size-5 mr-2" />
-                    <VercelLogo className="size-6 transition-all group-hover:scale-110" />
-                </Link>
-            </div>
-
-            <div className="flex-1 flex justify-center items-start md:items-center p-8">
+            <div className="flex-1 flex justify-center items-start md:items-center p-8 mt-16 md:mt-0">
                 <Card className="w-full max-w-sm">
                     <form onSubmit={handleLogin}>
                         <CardHeader>
@@ -87,7 +74,6 @@ export default function LoginPage() {
                                         <span className="w-full border-t" />
                                     </div>
                                 </div>
-
                                 <div className="space-y-4">
                                     <Input 
                                         type="text" 
